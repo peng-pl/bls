@@ -417,6 +417,7 @@ void SecretKey::getPublicKey(PublicKey& pub) const
 
 void SecretKey::sign(Signature& sig, const std::string& m) const
 {
+	sig.resetAggPart();
 	G1 Hm;
 	HashAndMapToG1(Hm, m);
 //	G1::mul(sig.getInner().sHm, Hm, getInner().s);

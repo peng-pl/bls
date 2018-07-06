@@ -10,7 +10,7 @@ TEST_SRC=bls_test.cpp bls_c384_test.cpp
 SAMPLE_SRC=bls_smpl.cpp
 
 CFLAGS+=-I../mcl/include
-UNIT?=6
+UNIT?=4
 ifeq ($(UNIT),4)
   CFLAGS+=-D"MCLBN_FP_UNIT_SIZE=4"
   GO_TAG=bn256
@@ -93,7 +93,7 @@ EMCC_OPT+=-O3 -DNDEBUG
 EMCC_OPT+=-s WASM=1 -s NO_EXIT_RUNTIME=1 -s MODULARIZE=1 #-s ASSERTIONS=1
 EMCC_OPT+=-DCYBOZU_MINIMUM_EXCEPTION
 EMCC_OPT+=-s ABORTING_MALLOC=0
-EMCC_OPT+=-DMCLBN_FP_UNIT_SIZE=6
+EMCC_OPT+=-DMCLBN_FP_UNIT_SIZE=4
 JS_DEP=src/bls_c.cpp ../mcl/src/fp.cpp Makefile
 
 ../bls-wasm/bls_c.js: $(JS_DEP)

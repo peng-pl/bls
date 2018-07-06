@@ -12,10 +12,16 @@
 #include <string>
 #include <iosfwd>
 #include <stdint.h>
+#include <iostream>
+using namespace std;
+#include <string.h>
 
 #ifdef _MSC_VER
 	#pragma comment(lib, "bls.lib")
 #endif
+
+
+#define PENG_HASH_2nd
 
 namespace bls {
 
@@ -177,7 +183,7 @@ class PublicKey {
 	impl::PublicKey& getInner() { return *reinterpret_cast<impl::PublicKey*>(this); }
 	const impl::PublicKey& getInner() const { return *reinterpret_cast<const impl::PublicKey*>(this); }
 public:
-	PublicKey() : self_() {}
+	PublicKey() : self_() {mclBnFr_clear(&t);} //TODO aggPart
 	bool operator==(const PublicKey& rhs) const;
 	bool operator!=(const PublicKey& rhs) const { return !(*this == rhs); }
 	friend std::ostream& operator<<(std::ostream& os, const PublicKey& pub);
@@ -203,6 +209,102 @@ public:
 	// the following methods are for C api
 	void set(const PublicKey *mpk, size_t k, const Id& id);
 	void recover(const PublicKey *pubVec, const Id *idVec, size_t n);
+
+	/****************************************************************/
+	//Peng
+	mclBnFr t; //TODO, only compute once, need to figure out when to recompute
+	mclBnG2 aggPart;
+
+	bool isAggSet()
+	{
+		return ! mclBnFr_isZero(&t);
+	}
+
+	bool computeAgg()
+	{
+#ifdef PENG_HASH_2nd
+		std::string str;
+		getStr(str, bls::IoFixedByteSeq);
+		mclBnFr temp;
+		int res = mclBnFr_setHash128Of(&temp, str.c_str(), str.size());//TODO check hash function used and size so that t in {1,2,...2^128}
+		if(res)
+		{
+			cerr << __func__ << ", mclBnFr_setHashOf error, res=" << res << endl;
+			return false;
+		}
+		mclBnFr one;//TODO global
+		mclBnFr_setInt32(&one, 1);
+		mclBnFr_add(&t, &temp, &one);
+
+		mclBnG2_mul(&aggPart, &self_.v, &t);
+		return true;
+#else
+		mclBnFr_setInt32(&t, 1); //set t to non-zero
+		aggPart = self_.v;
+		if(memcmp((void*)&aggPart, (void*)&self_.v, sizeof(aggPart)))
+		{
+			cerr << __func__ << ", memcmp((void*)&aggPart, (void*)&self_.v, sizeof(aggPart)) error" << endl;
+			exit(-1);
+		}
+		return true;
+#endif
+	}
+
+	static bool readyToAggregate(PublicKeyVec& mpk)
+	{
+		for(auto &x : mpk)
+		{
+			if(! x.isAggSet())
+			{
+				if( ! x.computeAgg())
+				{
+					cerr << __func__ << ", ! x.computeAgg() error" << endl;
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	bool aggregateFrom(PublicKeyVec& mpk)
+	{
+		if(mpk.empty() || !readyToAggregate(mpk))
+		{
+			cerr << __func__ << ", mpk.empty() || !readyToAggregate(mpk) error" << endl;
+			return false;
+		}
+
+		int vs = mpk.size();
+		if(vs == 1)
+		{
+			//			self_.v = mpk[0].aggPart; //TODO verify assign op
+			//			if(memcmp((void*)&mpk[0].aggPart, (void*)&self_.v, sizeof(self_.v)))
+			//			{
+			//				cerr << __func__ << ", memcmp((void*)&mpk[0].aggPart, (void*)&self_.v, sizeof(self_.v)) error" << endl;
+			//				exit(-1);
+			//			}
+			memcpy(&self_.v, &mpk[0].aggPart, sizeof(self_.v));
+		}
+		else
+		{
+			mclBnG2 z[2];
+			mclBnG2 *x = &mpk[0].aggPart;
+			mclBnG2 *y = &mpk[1].aggPart;
+			mclBnG2_add(&z[0], x, y);
+			for(int i = 2; i < vs; ++i)
+			{
+				x = & mpk[i].aggPart;
+				y = & z[i%2];
+				mclBnG2_add(&z[(i+1)%2], x, y); //TODO double check
+			}
+
+			//self_.v = z[vs%2];
+			memcpy(&self_.v, &z[vs%2], sizeof(self_.v));
+		}
+
+		return true;
+	}
+	/****************************************************************/
 };
 
 /*
@@ -215,7 +317,7 @@ class Signature {
 	impl::Signature& getInner() { return *reinterpret_cast<impl::Signature*>(this); }
 	const impl::Signature& getInner() const { return *reinterpret_cast<const impl::Signature*>(this); }
 public:
-	Signature() : self_() {}
+	Signature() : self_() {mclBnG1_clear(&aggPart);}
 	bool operator==(const Signature& rhs) const;
 	bool operator!=(const Signature& rhs) const { return !(*this == rhs); }
 	friend std::ostream& operator<<(std::ostream& os, const Signature& s);
@@ -238,6 +340,111 @@ public:
 
 	// the following methods are for C api
 	void recover(const Signature* sigVec, const Id *idVec, size_t n);
+
+	/****************************************************************/
+	//Peng
+	mclBnG1 aggPart;
+	void resetAggPart()
+	{
+		mclBnG1_clear(&aggPart);
+	}
+	bool isAggSet()
+	{
+		return ! mclBnG1_isZero(&aggPart);
+	}
+
+	bool computeAgg(const PublicKey& pub) //TODO assuming pub is agg-ready
+	{
+#ifdef PENG_HASH_2nd
+		mclBnG1_mul(&aggPart, &self_.v, &pub.t);
+#else
+		aggPart = self_.v;
+		if(memcmp((void*)&aggPart, (void*)&self_.v, sizeof(aggPart)))
+		{
+			cerr << __func__ << ", Signature memcmp((void*)&aggPart, (void*)&self_.v, sizeof(aggPart)) error" << endl;
+			exit(-1);
+		}
+#endif
+		return true;
+	}
+
+	//TODO private?
+	static bool readyToAggregate(SignatureVec& sigVec, PublicKeyVec& mpk)
+	{
+		int svs = sigVec.size();
+		for(int i = 0; i < svs; ++i)
+		{
+			if(! sigVec[i].isAggSet())
+			{
+				if( ! sigVec[i].computeAgg(mpk[i]))
+				{
+					cerr << __func__ << ", ! sigVec[i].computeAgg(mpk[0]) error" << endl;
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	bool aggregateFrom(SignatureVec& sigVec, PublicKeyVec& mpk) //TODO assuming sig and pk indices match
+	{
+		int svs = sigVec.size();
+		int pvs = mpk.size();
+
+		if(sigVec.empty() || mpk.empty() || svs != pvs)
+		{
+			cerr << __func__ << ", sigVec.empty() || mpk.empty() || svs != pvs error" << endl;
+			return false;
+		}
+
+		if( !PublicKey::readyToAggregate(mpk) )
+		{
+			cerr << __func__ << ", !PublicKey::readyToAggregate(mpk) error" << endl;
+			return false;
+		}
+
+		if( !Signature::readyToAggregate(sigVec, mpk))
+		{
+			cerr << __func__ << ", !Signature::readyToAggregate(sigVec, mpk) error" << endl;
+			return false;
+		}
+
+		if(svs == 1)
+		{
+			//			self_.v = sigVec[0].aggPart; //TODO verify assign op
+			//			if(memcmp((void*)&sigVec[0].aggPart, (void*)&self_.v, sizeof(aggPart)))
+			//			{
+			//				cerr << __func__ << ", Signature memcmp((void*)&aggPart, (void*)&self_.v, sizeof(aggPart)) error" << endl;
+			//				exit(-1);
+			//			}
+			memcpy(&self_.v, &sigVec[0].aggPart, sizeof(self_.v));
+		}
+		else
+		{
+			mclBnG1 z[2];
+			mclBnG1 *x = &sigVec[0].aggPart;
+			mclBnG1 *y = &sigVec[1].aggPart;
+			mclBnG1_add(&z[0], x, y);
+			for(int i = 2; i < svs; ++i)
+			{
+				x = & sigVec[i].aggPart;
+				y = & z[i%2];
+				mclBnG1_add(&z[(i+1)%2], x, y); //TODO double check
+			}
+			//self_.v = z[svs%2];
+			//			if(memcmp((void*)&z[svs%2], (void*)&self_.v, sizeof(self_.v)))
+			//			{
+			//				cerr << __func__ << ", Signature memcmp((void*)&aggPart, (void*)&self_.v, sizeof(aggPart)) error" << endl;
+			//				exit(-1);
+			//			}
+
+			memcpy(&self_.v, &z[svs%2], sizeof(self_.v));
+		}
+
+		return true;
+	}
+
+	/****************************************************************/
 };
 
 /*
