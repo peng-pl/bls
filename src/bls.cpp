@@ -270,6 +270,7 @@ void Signature::getStr(std::string& str, int ioMode) const
 void Signature::setStr(const std::string& str, int ioMode)
 {
 	getInner().sHm.setStr(str, ioMode);
+	resetAggPart();
 }
 
 bool Signature::verify(const PublicKey& pub, const std::string& m) const
@@ -345,6 +346,7 @@ void PublicKey::getStr(std::string& str, int ioMode) const
 void PublicKey::setStr(const std::string& str, int ioMode)
 {
 	getInner().sQ.setStr(str, ioMode);
+	resetAggPart();
 }
 void PublicKey::set(const PublicKey *mpk, size_t k, const Id& id)
 {

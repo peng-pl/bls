@@ -10,6 +10,7 @@
 #define MCLBN_FP_UNIT_SIZE 4
 
 #include <mcl/bn.h>
+#include <mcl/op.hpp>
 #include <bls/bls.h>
 #include <vector>
 #include <string>
@@ -36,6 +37,8 @@ enum {
 	IoHex = 16, // hexadecimal number
 	IoFixedByteSeq = 512 // fixed byte representation
 };
+
+typedef cybozu::Exception Exception;
 
 namespace impl {
 
@@ -174,6 +177,21 @@ public:
 	*/
 	void set(const SecretKey *msk, size_t k, const Id& id);
 	void recover(const SecretKey *secVec, const Id *idVec, size_t n);
+
+	std::string to_string () const{
+		std::string s;
+		getStr(s, mcl::IoMode::IoHex);
+		return s;
+	}
+
+	void serialize(string & s)
+	{
+		getStr(s, mcl::IoMode::IoSerialize);
+	}
+	void deserialize(const string & s)
+	{
+		setStr(s, mcl::IoMode::IoSerialize);
+	}
 };
 
 /*
@@ -187,7 +205,7 @@ class PublicKey {
 	impl::PublicKey& getInner() { return *reinterpret_cast<impl::PublicKey*>(this); }
 	const impl::PublicKey& getInner() const { return *reinterpret_cast<const impl::PublicKey*>(this); }
 public:
-	PublicKey() : self_() {mclBnFr_clear(&t);} //TODO aggPart
+	PublicKey() : self_() {resetAggPart();}
 	bool operator==(const PublicKey& rhs) const;
 	bool operator!=(const PublicKey& rhs) const { return !(*this == rhs); }
 	friend std::ostream& operator<<(std::ostream& os, const PublicKey& pub);
@@ -218,6 +236,26 @@ public:
 	//Peng
 	mclBnFr t; //TODO, only compute once, need to figure out when to recompute
 	mclBnG2 aggPart;
+	void resetAggPart()
+	{
+		mclBnFr_clear(&t);
+		mclBnG2_clear(&aggPart);
+	}
+
+	PublicKey(const PublicKey & other)
+	: self_(other.self_)
+	{
+		resetAggPart();
+	}
+
+	PublicKey & operator=(const PublicKey &other)
+	{
+        if(&other == this)
+            return *this;
+		memcpy(&self_, &other.self_, sizeof(self_));
+		resetAggPart();
+		return *this;
+	}
 
 	bool isAggSet()
 	{
@@ -308,7 +346,41 @@ public:
 
 		return true;
 	}
+
+	std::string to_string () const{
+		std::string s;
+		getStr(s, mcl::IoMode::IoHex);
+		return s;
+	}
+
+	void serialize(string & s)
+	{
+		getStr(s, mcl::IoMode::IoSerialize);
+	}
+	void deserialize(const string & s)
+	{
+		setStr(s, mcl::IoMode::IoSerialize);
+	}
 	/****************************************************************/
+};
+
+class KeyPair
+{
+public:
+	KeyPair ()
+	{
+		prv.init();
+		prv.getPublicKey(pub);
+	}
+
+	KeyPair (std::string const & s)
+	{
+		prv.setStr(s, mcl::IoMode::IoSerialize);
+		prv.getPublicKey(pub);
+	}
+
+	bls::SecretKey prv;
+	bls::PublicKey pub;
 };
 
 /*
@@ -321,7 +393,7 @@ class Signature {
 	impl::Signature& getInner() { return *reinterpret_cast<impl::Signature*>(this); }
 	const impl::Signature& getInner() const { return *reinterpret_cast<const impl::Signature*>(this); }
 public:
-	Signature() : self_() {mclBnG1_clear(&aggPart);}
+	Signature() : self_() {resetAggPart();}
 	bool operator==(const Signature& rhs) const;
 	bool operator!=(const Signature& rhs) const { return !(*this == rhs); }
 	friend std::ostream& operator<<(std::ostream& os, const Signature& s);
@@ -348,6 +420,22 @@ public:
 	/****************************************************************/
 	//Peng
 	mclBnG1 aggPart;
+
+	Signature(const Signature& other)
+	: self_(other.self_)
+	{
+		resetAggPart();
+	}
+
+	Signature & operator=(const Signature &other)
+	{
+        if(&other == this)
+            return *this;
+		memcpy(&self_, &other.self_, sizeof(self_));
+		resetAggPart();
+		return *this;
+	}
+
 	void resetAggPart()
 	{
 		mclBnG1_clear(&aggPart);
@@ -448,6 +536,20 @@ public:
 		return true;
 	}
 
+	std::string to_string () const{
+		std::string s;
+		getStr(s, mcl::IoMode::IoHex);
+		return s;
+	}
+	void serialize(string & s)
+	{
+		getStr(s, mcl::IoMode::IoSerialize);
+	}
+
+	void deserialize(const string & s)
+	{
+		setStr(s, mcl::IoMode::IoSerialize);
+	}
 	/****************************************************************/
 };
 
