@@ -6,6 +6,9 @@
 	@license modified new BSD license
 	http://opensource.org/licenses/BSD-3-Clause
 */
+
+#define MCLBN_FP_UNIT_SIZE 4
+
 #include <mcl/bn.h>
 #include <bls/bls.h>
 #include <vector>
@@ -21,7 +24,8 @@ using namespace std;
 #endif
 
 
-#define PENG_HASH_2nd
+#define HASH_2nd_128BIT
+
 
 namespace bls {
 
@@ -222,7 +226,7 @@ public:
 
 	bool computeAgg()
 	{
-#ifdef PENG_HASH_2nd
+#ifdef HASH_2nd_128BIT
 		std::string str;
 		getStr(str, bls::IoFixedByteSeq);
 		mclBnFr temp;
@@ -355,7 +359,7 @@ public:
 
 	bool computeAgg(const PublicKey& pub) //TODO assuming pub is agg-ready
 	{
-#ifdef PENG_HASH_2nd
+#ifdef HASH_2nd_128BIT
 		mclBnG1_mul(&aggPart, &self_.v, &pub.t);
 #else
 		aggPart = self_.v;
