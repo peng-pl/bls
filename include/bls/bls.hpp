@@ -178,16 +178,30 @@ public:
 	void set(const SecretKey *msk, size_t k, const Id& id);
 	void recover(const SecretKey *secVec, const Id *idVec, size_t n);
 
-	std::string to_string () const{
+	std::string to_string () const
+	{
 		std::string s;
-		getStr(s, mcl::IoMode::IoHex);
-		return s;
+		getStr(s, mcl::IoMode::IoSerialize);
+		return logos::unicode_to_hex(s);
 	}
 
-	void serialize(string & s)
+    void from_string(const string & s)
+    {
+        setStr(logos::hex_to_unicode(s), mcl::IoMode::IoSerialize);
+    }
+
+	void serialize(string & s) const
 	{
 		getStr(s, mcl::IoMode::IoSerialize);
 	}
+
+    void serialize(DelegatePrivKey & arr) const
+    {
+        std::string prv_str;
+        serialize(prv_str);
+        memcpy(arr.data(), prv_str.data(), CONSENSUS_PRIV_KEY_SIZE);
+    }
+
 	void deserialize(const string & s)
 	{
 		setStr(s, mcl::IoMode::IoSerialize);
@@ -347,16 +361,30 @@ public:
 		return true;
 	}
 
-	std::string to_string () const{
+	std::string to_string () const
+	{
 		std::string s;
-		getStr(s, mcl::IoMode::IoHex);
-		return s;
+        serialize(s);
+		return logos::unicode_to_hex(s);
 	}
 
-	void serialize(string & s)
+	void from_string(const string & s)
+    {
+        setStr(logos::hex_to_unicode(s), mcl::IoMode::IoSerialize);
+    }
+
+	void serialize(string & s) const
 	{
 		getStr(s, mcl::IoMode::IoSerialize);
 	}
+
+	void serialize(DelegatePubKey & arr) const
+    {
+	    std::string pub_str;
+	    serialize(pub_str);
+	    memcpy(arr.data(), pub_str.data(), CONSENSUS_PUB_KEY_SIZE);
+    }
+
 	void deserialize(const string & s)
 	{
 		setStr(s, mcl::IoMode::IoSerialize);
@@ -378,6 +406,18 @@ public:
 		prv.setStr(s, mcl::IoMode::IoSerialize);
 		prv.getPublicKey(pub);
 	}
+
+	KeyPair (ByteArray<32> const & raw)
+    {
+	    std::string str;
+	    str.reserve(32);
+	    for (auto const & i : raw)
+        {
+	        str.push_back((char)i);
+        }
+	    prv.setStr(str, mcl::IoMode::IoSerialize);
+	    prv.getPublicKey(pub);
+    }
 
 	bls::SecretKey prv;
 	bls::PublicKey pub;
