@@ -9,6 +9,7 @@
 
 #define MCLBN_FP_UNIT_SIZE 4
 
+#include <array>
 #include <mcl/bn.h>
 #include <mcl/op.hpp>
 #include <bls/bls.h>
@@ -88,6 +89,42 @@ typedef std::vector<SecretKey> SecretKeyVec;
 typedef std::vector<PublicKey> PublicKeyVec;
 typedef std::vector<Signature> SignatureVec;
 typedef std::vector<Id> IdVec;
+
+inline std::string unicode_to_hex(std::string const & input)
+{
+    static const char* const lut = "0123456789abcdef";
+    size_t len = input.length();
+
+    std::string output;
+    output.reserve(2 * len);
+    for (size_t i = 0; i < len; ++i)
+    {
+        const unsigned char c = input[i];
+        output.push_back(lut[c >> 4]);
+        output.push_back(lut[c & 15]);
+    }
+    return output;
+}
+
+inline std::string hex_to_unicode(std::string const & input)
+{
+    std::string output;
+
+    assert((input.length() % 2) == 0);
+
+    size_t cnt = input.length() / 2;
+
+    output.reserve(cnt);
+    for (size_t i = 0; cnt > i; ++i) {
+        uint32_t s = 0;
+        std::stringstream ss;
+        ss << std::hex << input.substr(i * 2, 2);
+        ss >> s;
+
+        output.push_back(static_cast<unsigned char>(s));
+    }
+    return output;
+}
 
 class Id {
 	blsId self_;
@@ -182,12 +219,12 @@ public:
 	{
 		std::string s;
 		getStr(s, mcl::IoMode::IoSerialize);
-		return logos::unicode_to_hex(s);
+		return bls::unicode_to_hex(s);
 	}
 
     void from_string(const string & s)
     {
-        setStr(logos::hex_to_unicode(s), mcl::IoMode::IoSerialize);
+        setStr(bls::hex_to_unicode(s), mcl::IoMode::IoSerialize);
     }
 
 	void serialize(string & s) const
@@ -195,11 +232,12 @@ public:
 		getStr(s, mcl::IoMode::IoSerialize);
 	}
 
-    void serialize(DelegatePrivKey & arr) const
+    template<size_t len>
+    void serialize(std::array<unsigned char, len> & arr) const
     {
         std::string prv_str;
         serialize(prv_str);
-        memcpy(arr.data(), prv_str.data(), CONSENSUS_PRIV_KEY_SIZE);
+        memcpy(arr.data(), prv_str.data(), len);
     }
 
 	void deserialize(const string & s)
@@ -365,12 +403,12 @@ public:
 	{
 		std::string s;
         serialize(s);
-		return logos::unicode_to_hex(s);
+		return unicode_to_hex(s);
 	}
 
 	void from_string(const string & s)
     {
-        setStr(logos::hex_to_unicode(s), mcl::IoMode::IoSerialize);
+        setStr(bls::hex_to_unicode(s), mcl::IoMode::IoSerialize);
     }
 
 	void serialize(string & s) const
@@ -378,11 +416,12 @@ public:
 		getStr(s, mcl::IoMode::IoSerialize);
 	}
 
-	void serialize(DelegatePubKey & arr) const
+    template<size_t len>
+	void serialize(std::array<unsigned char, len> & arr) const
     {
 	    std::string pub_str;
 	    serialize(pub_str);
-	    memcpy(arr.data(), pub_str.data(), CONSENSUS_PUB_KEY_SIZE);
+	    memcpy(arr.data(), pub_str.data(), len);
     }
 
 	void deserialize(const string & s)
@@ -407,7 +446,7 @@ public:
 		prv.getPublicKey(pub);
 	}
 
-	KeyPair (ByteArray<32> const & raw)
+	KeyPair (std::array<unsigned char, 32> const & raw)
     {
 	    std::string str;
 	    str.reserve(32);
