@@ -237,6 +237,7 @@ public:
     {
         std::string prv_str;
         serialize(prv_str);
+        assert(prv_str.size() == len);
         memcpy(arr.data(), prv_str.data(), len);
     }
 
@@ -421,6 +422,7 @@ public:
     {
 	    std::string pub_str;
 	    serialize(pub_str);
+	    assert(pub_str.size() == len);
 	    memcpy(arr.data(), pub_str.data(), len);
     }
 
